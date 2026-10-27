@@ -118,7 +118,7 @@ ggplot(giorno_tipo, aes(x = ora)) +
   scale_x_continuous(breaks = seq(0, 23, 3)) +
   labs(title = "July 2022", x = "Ora", y = NULL) +
   theme_minimal()
-
+plot(df_jul22$ora_utc, df_jul22$t2m, type="l")
 
 
 
