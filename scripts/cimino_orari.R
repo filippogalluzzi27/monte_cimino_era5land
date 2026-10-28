@@ -38,69 +38,94 @@ df_d <- df_h |>
 df_d
 
 df_m <- df_d |>
-  group_by_key() |>
   index_by(month = yearmonth(data)) |>
-  summarise(t2m  = mean(t2m, na.rm = TRUE),                         
-            rh  = mean(rh, na.rm = TRUE),
-            vpd = mean(vpd, na.rm =TRUE),
-            prec = sum(prec, na.rm = TRUE)) 
+  summarise(t2m  = mean(t2m,  na.rm = TRUE),
+            tmin = mean(tmin, na.rm = TRUE),
+            tmax = mean(tmax, na.rm = TRUE),
+            rh   = mean(rh,   na.rm = TRUE),
+            vpd  = mean(vpd,  na.rm = TRUE),
+            prec = sum(prec,  na.rm = TRUE))
 df_m
+
+
 
 
 # =============================================================================
 # SPEI
-calcola_spei <- function(temp, prec, lat) {
-  pet <- thornthwaite(temp, lat = lat, na.rm = TRUE, verbose = FALSE)
-  bal <- prec - pet    
-  s <- lapply(scale_spei, \(k) spei(bal, scale = k, na.rm = TRUE, verbose = FALSE,
-                                    ref.start = c(ref[1], 1), ref.end = c(ref[2], 12)))
-  setNames(s, paste0("spei_", scale_spei))}
-s <- calcola_spei(as.ts(df_m, value = t2m), as.ts(df_m, value = prec), lat)
-df_m[names(s)] <- lapply(s, \(x) as.numeric(x$fitted))   # una colonna per scala, accanto ai dati
-df_m
+pet <- hargreaves(as.ts(df_m, value = tmin), as.ts(df_m, value = tmax),
+                  lat = lat, na.rm = TRUE, verbose = FALSE)
+bal <- as.ts(df_m, value = prec) - pet                         
+s   <- spei(bal, scale = scala, na.rm = TRUE, verbose = FALSE,
+            ref.start = c(ref[1], 1), ref.end = c(ref[2], 12))
+
+df_m$pet  <- as.numeric(pet)
+df_m$spei <- as.numeric(s$fitted)
 
 df_m |>
-  filter(year(month) >= 1996) |>
-    ggplot(aes(x = month)) +
-    geom_ribbon(aes(ymin = pmin(spei_12, 0), ymax = 0), fill = "firebrick") +
-    geom_ribbon(aes(ymin = 0, ymax = pmax(spei_12, 0)), fill = "steelblue") +
-    geom_hline(yintercept = 0, linewidth = 0.3) +
-    geom_hline(yintercept = c(-1, -1.5, -2), linetype = "dashed",
-               linewidth = 0.2, colour = "grey40") +
-    labs(title = "SPEI-12", x = NULL, y = "SPEI-12 (z-values)") +
-    theme_minimal()
-df_m |>
-  filter(year(month) >= 1996) |>
   ggplot(aes(x = month)) +
-  geom_ribbon(aes(ymin = pmin(spei_6, 0), ymax = 0), fill = "firebrick") +
-  geom_ribbon(aes(ymin = 0, ymax = pmax(spei_12, 0)), fill = "steelblue") +
+  geom_ribbon(aes(ymin = pmin(spei, 0), ymax = 0), fill = "firebrick") +
+  geom_ribbon(aes(ymin = 0, ymax = pmax(spei, 0)), fill = "steelblue") +
   geom_hline(yintercept = 0, linewidth = 0.3) +
   geom_hline(yintercept = c(-1, -1.5, -2), linetype = "dashed",
              linewidth = 0.2, colour = "grey40") +
-  labs(title = "SPEI-6", x = NULL, y = "SPEI-6 (z-values)") +
+  labs(title = paste0("SPEI-", scala), x = NULL, y = "SPEI (z-values)") +
   theme_minimal()
+
+# df_m |>
+#   ggplot(aes(x = month)) +
+#   geom_ribbon(aes(ymin = pmin(spei_6, 0), ymax = 0), fill = "firebrick") +
+#   geom_ribbon(aes(ymin = 0, ymax = pmax(spei_12, 0)), fill = "steelblue") +
+#   geom_hline(yintercept = 0, linewidth = 0.3) +
+#   geom_hline(yintercept = c(-1, -1.5, -2), linetype = "dashed",
+#              linewidth = 0.2, colour = "grey40") +
+#   labs(title = "SPEI-6", x = NULL, y = "SPEI-6 (z-values)") +
+#   theme_minimal()
 
 
 
 # =============================================================================
 # SPEI classes for the period 1996-2025
-df <- df_m |> 
-  filter(between(year(month), 1996, 2025)); df
+# Classi SPEI → mesi dell'esperimento
+df_m <- df_m |> mutate(classe = cut(spei, breaks = soglie, labels = classi))
 
-classes <- df |>
+mesi_classe <- df_m |>
   as_tibble() |>
-  pivot_longer(starts_with("spei_"), names_to = "scala", values_to = "spei") |>
-  mutate(class = cut(spei, breaks = c(-Inf, -2, -1.5, -1),
-                      labels = c("extreme", "severe", "moderate"))) |>
-  filter(!is.na(class)) |>
-  select(scala, month, spei, class) |>
-  arrange(scala, class, month)
+  filter(month(as.Date(month)) %in% mesi, !is.na(classe)) |>
+  select(month, spei, classe)
 
-print(classes, n = Inf)
-count(classes, scala, class)
+count(mesi_classe, classe)
+print(mesi_classe, n = Inf)
+
 
 # =============================================================================
-# Selection of a "typical day"
+# VPD selection
+df_m |>
+  ggplot(aes(x = month)) +
+  geom_ribbon(aes(ymin = pmin(vpd, 0), ymax = 0), fill = "firebrick") +
+  geom_ribbon(aes(ymin = 0, ymax = pmax(vpd, 0)), fill = "steelblue") +
+  geom_hline(yintercept = 0, linewidth = 0.3) +
+  geom_hline(yintercept = c(0, 0.4, 0.8, 1.2, 1.6), linetype = "dashed",
+             linewidth = 0.2, colour = "red") +
+  labs(title = "VPD", x = NULL, y = "VPD (kPa)") +
+  theme_minimal()
+
+df_vpd <- df_m
+classes_vpd <- df_vpd |>
+  as_tibble() |>
+  pivot_longer(starts_with("vpd"), names_to = "scala", values_to = "vpd") |>
+  mutate(class = cut(vpd, breaks = c(0, 0.4, 0.8, 1.2, 1.6, +Inf))) |>
+  filter(!is.na(class)) |>
+  select(scala, month, vpd, class) |>
+  arrange(scala, class, month)
+
+print(classes_vpd, n = Inf)
+count(classes_vpd, scala, class)
+
+
+
+
+# =============================================================================
+# Selection of a "typical day" during extreme drought
 # spei_12 2022 lug
 df_jul22 <- df_h |> filter(year(ora_utc) == 2022, month(ora_utc) == 7)
 giorno_tipo <- df_jul22 |>
@@ -120,6 +145,47 @@ ggplot(giorno_tipo, aes(x = ora)) +
   theme_minimal()
 plot(df_jul22$ora_utc, df_jul22$t2m, type="l")
 
+
+# =============================================================================
+# =============================================================================
+# Giorno / notte: elevazione del sole a ogni ora
+# ore in UTC → ora solare calcolata dalla longitudine: nessun fuso o ora legale da gestire
+# giorno = sole sopra l'orizzonte all'istante del dato (T e RH sono valori istantanei)
+elev_sole <- function(t, lat, lon) {
+  doy  <- yday(t)
+  decl <- 23.45 * sin(2 * pi * (284 + doy) / 365)              # declinazione solare (°)
+  B    <- 2 * pi * (doy - 81) / 364
+  eot  <- 9.87 * sin(2 * B) - 7.53 * cos(B) - 1.5 * sin(B)     # equazione del tempo (min)
+  ora_sol <- hour(t) + minute(t) / 60 + lon / 15 + eot / 60    # ora solare vera (h)
+  w    <- 15 * (ora_sol - 12)                                 # angolo orario (°)
+  r    <- pi / 180
+  asin(sin(lat * r) * sin(decl * r) + cos(lat * r) * cos(decl * r) * cos(w * r)) / r
+}
+
+df_h <- df_h |>
+  mutate(periodo = if_else(elev_sole(ora_utc, lat, lon) > 0, "giorno", "notte"))
+
+
+# =============================================================================
+# Valori diurni e notturni per classe SPEI (solo i mesi in mesi_classe)
+es <- function(t) 0.61094 * exp(17.625 * t / (t + 243.04))   # pressione di vapore di saturazione (kPa)
+
+valori_classe <- df_h |>
+  as_tibble() |>
+  mutate(month = yearmonth(ora_utc)) |>
+  inner_join(mesi_classe, by = "month") |>                    # solo le ore dei mesi classificati
+  group_by(classe, periodo) |>
+  summarise(n_mesi        = n_distinct(month),
+            ore_al_giorno = n() / n_distinct(as.Date(ora_utc)),  # righe "giorno" = ore di luce
+            t_p10 = quantile(t2m, 0.1),                          # percentili prima della media
+            t_p90 = quantile(t2m, 0.9),
+            t2m   = mean(t2m),
+            rh    = mean(rh),
+            vpd   = mean(vpd),
+            .groups = "drop") |>
+  mutate(rh_da_vpd = 100 * (1 - vpd / es(t2m)))   # RH che, alla t2m media, dà il VPD medio
+
+valori_classe
 
 
 
