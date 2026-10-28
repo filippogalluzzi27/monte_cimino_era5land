@@ -32,7 +32,7 @@ pt <- data.frame(lon = lon, lat =  lat)
 scala <- 12      # mesi di cumulo
 ref        <- c(1991, 2020)
 mesi   <- 6:8             # mesi dell'esperimento (giugno–agosto)
-soglie <- c(-Inf, -2, -1.5, -1)                        # limiti delle classi
-classi <- c("extreme", "severe", "moderate")  
+soglie <- c(-Inf, -2, -1.5, -1, 1)                        # limiti delle classi
+classi <- c("extreme", "severe", "moderate", "normal")  
 
 

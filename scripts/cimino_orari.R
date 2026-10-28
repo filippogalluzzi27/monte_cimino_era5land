@@ -168,22 +168,22 @@ df_h <- df_h |>
 
 # =============================================================================
 # Valori diurni e notturni per classe SPEI (solo i mesi in mesi_classe)
-es <- function(t) 0.61094 * exp(17.625 * t / (t + 243.04))   # pressione di vapore di saturazione (kPa)
+es <- function(t) 0.61094 * exp(17.625 * t / (t + 243.04))
 
 valori_classe <- df_h |>
   as_tibble() |>
   mutate(month = yearmonth(ora_utc)) |>
-  inner_join(mesi_classe, by = "month") |>                    # solo le ore dei mesi classificati
+  inner_join(mesi_classe, by = "month") |>  
   group_by(classe, periodo) |>
   summarise(n_mesi        = n_distinct(month),
-            ore_al_giorno = n() / n_distinct(as.Date(ora_utc)),  # righe "giorno" = ore di luce
-            t_p10 = quantile(t2m, 0.1),                          # percentili prima della media
+            ore_al_giorno = n() / n_distinct(as.Date(ora_utc)),
+            t_p10 = quantile(t2m, 0.1), 
             t_p90 = quantile(t2m, 0.9),
             t2m   = mean(t2m),
             rh    = mean(rh),
             vpd   = mean(vpd),
             .groups = "drop") |>
-  mutate(rh_da_vpd = 100 * (1 - vpd / es(t2m)))   # RH che, alla t2m media, dà il VPD medio
+  mutate(rh_da_vpd = 100 * (1 - vpd / es(t2m))) 
 
 valori_classe
 
